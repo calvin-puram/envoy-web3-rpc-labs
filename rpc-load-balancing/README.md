@@ -59,6 +59,8 @@ for i in {1..10}; do
 done
 ```
 
+![experiment-1a diagram](./screenshots/exp1a.png)
+
 Check request counts per upstream node in Envoy admin:
 
 ```bash
@@ -66,7 +68,7 @@ curl -s http://localhost:9901/stats \
   | grep "cluster.ethereum_nodes.upstream_rq_total"
 ```
 
-You should see requests split roughly 50/50 between node1 and node2.
+![experiment-1b diagram](./screenshots/exp1b.png)
 
 
 
@@ -87,6 +89,7 @@ docker compose stop node1
 # Observe: requests keep succeeding via node2
 # Envoy detects the failure within 3 failed health checks (~30s)
 ```
+![experiment-2a diagram](./screenshots/exp2a.png)
 
 Check Envoy cluster health:
 
@@ -94,7 +97,9 @@ Check Envoy cluster health:
 curl -s http://localhost:9901/clusters \
   | grep -E "(health|cx_active|rq_total)"
 ```
+![experiment-2b diagram](./screenshots/exp2b.png)
 
+![experiment-2c diagram](./screenshots/exp2c.png)
 
 
 ### Experiment 3: Node Recovery
@@ -108,12 +113,13 @@ docker compose start node1
 # Watch health checks in Envoy logs
 docker compose logs -f envoy | grep -i health
 
+
 # After 2 successful health checks, node1 rejoins the pool
 # Verify both nodes are healthy again
 curl -s http://localhost:9901/clusters | grep -A2 "health_flags"
 ```
 
-
+![experiment-2d diagram](./screenshots/exp2d.png)
 
 ### Experiment 4: Observe Per-Node Metrics
 
@@ -132,7 +138,7 @@ curl -s http://localhost:9901/stats | grep ethereum_nodes | sort
 # upstream_rq_retry         - retried requests
 ```
 
-
+![experiment-4 diagram](./screenshots/exp4.png)
 
 ## Envoy Admin Dashboard
 
