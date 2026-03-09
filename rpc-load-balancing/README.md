@@ -1,4 +1,4 @@
-# Lab 01 — RPC Load Balancing Across Ethereum Nodes
+# Lab 01: RPC Load Balancing Across Ethereum Nodes
 
 ## Overview
 
@@ -14,7 +14,7 @@ This lab demonstrates how to use **Envoy Proxy** as a smart layer-7 load balance
 
 
 ## Architecture
-![architecture diagram](/screenshots//loadbalancing.jpg)
+![architecture diagram](./screenshots//loadbalancing.jpg)
 
 
 
@@ -75,13 +75,13 @@ You should see requests split roughly 50/50 between node1 and node2.
 Simulate a node failure and observe Envoy routing around it:
 
 ```bash
-# Terminal 1 - continuously send requests
+# Terminal 1: continuously send requests
 watch -n 1 'curl -s -X POST http://localhost:8545 \
   -H "Content-Type: application/json" \
   -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}" \
   | jq .'
 
-# Terminal 2 - kill node1
+# Terminal 2: kill node1
 docker compose stop node1
 
 # Observe: requests keep succeeding via node2
@@ -132,7 +132,7 @@ curl -s http://localhost:9901/stats | grep ethereum_nodes | sort
 # upstream_rq_retry         - retried requests
 ```
 
----
+
 
 ## Envoy Admin Dashboard
 
@@ -146,7 +146,7 @@ Open in your browser: **http://localhost:9901**
 | `/config_dump` | Full running config |
 | `/ready` | Envoy readiness check |
 
----
+
 
 ## Key Envoy Concepts Used
 
@@ -175,7 +175,7 @@ retry_policy:
 ```
 Automatically retries failed requests against a different upstream node.
 
----
+
 
 ## Cleanup
 
@@ -183,14 +183,14 @@ Automatically retries failed requests against a different upstream node.
 docker compose down -v
 ```
 
----
+
 
 ## What's Next
 
-- **[Lab 02 — RPC Rate Limiting](../02-rpc-rate-limiting/)** — protect your nodes from being overwhelmed
-- **[Lab 05 — Circuit Breaking](../05-circuit-breaking/)** — fail fast when nodes are degraded
+- **[Lab 02: RPC Rate Limiting](../rpc-rate-limiting/)**  protect your nodes from being overwhelmed
+- **[Lab 05: Circuit Breaking](../circuit-breaking/)**  fail fast when nodes are degraded
 
----
+
 
 ## References
 
