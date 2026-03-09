@@ -22,6 +22,6 @@ for blockchain RPC infrastructure.
 
 ## How to Run Each Lab
 cd into any lab folder and run:
-\`\`\`bash
+```bash
 docker-compose up -d
-\`\`\`
+```
