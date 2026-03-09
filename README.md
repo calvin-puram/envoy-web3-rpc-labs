@@ -3,6 +3,9 @@
 A collection of hands on labs exploring Envoy Proxy
 for blockchain RPC infrastructure.
 
+> **Note:** All labs run in `--dev` mode with no authentication.
+> For learning purposes only not production ready.
+
 ## Labs
 
 | # | Lab | Concepts |
