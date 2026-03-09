@@ -46,7 +46,7 @@ docker compose ps
 
 ## Experiments
 
-### Experiment 1 — Verify Load Balancing
+### Experiment 1: Verify Load Balancing
 
 Send 10 RPC requests through Envoy and observe the distribution:
 
@@ -70,7 +70,7 @@ You should see requests split roughly 50/50 between node1 and node2.
 
 
 
-### Experiment 2 — Automatic Failover
+### Experiment 2: Automatic Failover
 
 Simulate a node failure and observe Envoy routing around it:
 
@@ -97,7 +97,7 @@ curl -s http://localhost:9901/clusters \
 
 
 
-### Experiment 3 — Node Recovery
+### Experiment 3: Node Recovery
 
 Bring the failed node back and observe automatic pool re-entry:
 
@@ -115,7 +115,7 @@ curl -s http://localhost:9901/clusters | grep -A2 "health_flags"
 
 
 
-### Experiment 4 — Observe Per-Node Metrics
+### Experiment 4: Observe Per-Node Metrics
 
 ```bash
 # Full cluster stats
