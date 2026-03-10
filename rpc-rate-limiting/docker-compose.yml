@@ -1,0 +1,65 @@
+services:
+  envoy:
+    image: envoyproxy/envoy:v1.29-latest
+    container_name: envoy-rate-limit
+    restart: unless-stopped
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "8545:8545"
+      - "9901:9901"
+    command:
+      - /usr/local/bin/envoy
+      - -c /etc/envoy/envoy.yaml
+      - --log-level info
+      - --component-log-level http:debug,router:debug
+    depends_on:
+      node1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  node1:
+    image: ethereum/client-go:stable
+    container_name: eth-node-rate-limit
+    restart: unless-stopped
+    command:
+      - --dev
+      - --dev.period=1
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.port=8545
+      - --http.api=eth,web3,net,debug
+      - --http.corsdomain=*
+      - --http.vhosts=*
+      - --verbosity=3
+    ports:
+      - "18545:8545"    # direct access for comparison bypasses rate limit
+    volumes:
+      - node1-data:/root/.ethereum
+    healthcheck:
+      test:
+        - CMD
+        - sh
+        - -c
+        - |
+          wget -qO- --post-data='{"jsonrpc":"2.0","method":"net_listening","params":[],"id":1}' \
+          --header='Content-Type: application/json' \
+          http://localhost:8545 | grep -q '"result":true'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  node1-data:
+    driver: local
+
+networks:
+  default:
+    name: envoy-rate-limit-network
+    driver: bridge

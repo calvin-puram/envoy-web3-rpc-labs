@@ -1,0 +1,202 @@
+
+static_resources:
+
+  listeners:
+    - name: rpc_listener
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8545
+
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: rpc_ingress
+                use_remote_address: true
+
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      log_format:
+                        text_format: |
+                          [%START_TIME%] "%REQ(:METHOD)% %REQ(:PATH)% %PROTOCOL%"
+                          status=%RESPONSE_CODE% upstream=%UPSTREAM_HOST%
+                          client=%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%
+                          duration=%DURATION%ms rate_limited=%RESP(X-RATE-LIMITED)%
+
+                http_filters:
+
+                  # Global Rate Limit Applied to ALL requests
+                  - name: envoy.filters.http.local_ratelimit
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                      stat_prefix: global_rate_limit
+
+                      # Token bucket: 100 req/s sustained, burst up to 200
+                      token_bucket:
+                        max_tokens: 200
+                        tokens_per_fill: 100
+                        fill_interval: 1s
+
+                      # Apply this limit to every request
+                      filter_enabled:
+                        runtime_key: local_rate_limit_enabled
+                        default_value:
+                          numerator: 100
+                          denominator: HUNDRED
+
+                      filter_enforced:
+                        runtime_key: local_rate_limit_enforced
+                        default_value:
+                          numerator: 100
+                          denominator: HUNDRED
+
+                      # Headers added to ALL responses (including non limited)
+                      response_headers_to_add:
+                        - header:
+                            key: x-rate-limit-limit
+                            value: "100"
+                          keep_empty_value: true
+                        - header:
+                            key: x-rate-limited
+                            value: "true"
+                          keep_empty_value: true
+
+                  # Router must be last filter
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+                route_config:
+                  name: rpc_route
+                  virtual_hosts:
+                    - name: rpc_backend
+                      domains: ["*"]
+
+                      routes:
+
+                        # eth_getLogs strict limit Most expensive RPC method
+                        - match:
+                            prefix: "/"
+                            headers:
+                              - name: content-type
+                                string_match:
+                                  contains: "application/json"
+                            # Match on JSON body method field via header
+                            # Note: body matching requires buffer filter;
+                            # use a custom header in production for method routing
+                          typed_per_filter_config:
+                            envoy.filters.http.local_ratelimit:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                              stat_prefix: eth_getlogs_rate_limit
+                              token_bucket:
+                                max_tokens: 5         # no burst for getLogs
+                                tokens_per_fill: 5
+                                fill_interval: 1s
+                              filter_enabled:
+                                default_value:
+                                  numerator: 100
+                                  denominator: HUNDRED
+                              filter_enforced:
+                                default_value:
+                                  numerator: 100
+                                  denominator: HUNDRED
+                              response_headers_to_add:
+                                - header:
+                                    key: x-rate-limit-limit
+                                    value: "5"
+                                - header:
+                                    key: retry-after
+                                    value: "1"
+                          route:
+                            cluster: ethereum_node
+                            timeout: 30s
+
+                        # Default route — all other methods
+                        # Per-IP: 10 req/s with burst of 20
+                        - match:
+                            prefix: "/"
+                          typed_per_filter_config:
+                            envoy.filters.http.local_ratelimit:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                              stat_prefix: per_ip_rate_limit
+                              token_bucket:
+                                max_tokens: 20        # allow short bursts
+                                tokens_per_fill: 10   # refill 10 tokens/sec
+                                fill_interval: 1s
+                              filter_enabled:
+                                default_value:
+                                  numerator: 100
+                                  denominator: HUNDRED
+                              filter_enforced:
+                                default_value:
+                                  numerator: 100
+                                  denominator: HUNDRED
+                              # Headers on 429 response
+                              response_headers_to_add:
+                                - header:
+                                    key: x-rate-limit-limit
+                                    value: "10"
+                                - header:
+                                    key: x-rate-limit-remaining
+                                    value: "0"
+                                - header:
+                                    key: retry-after
+                                    value: "1"
+                                - header:
+                                    key: content-type
+                                    value: "application/json"
+                          route:
+                            cluster: ethereum_node
+                            timeout: 30s
+                            retry_policy:
+                              retry_on: "5xx,reset,connect-failure"
+                              num_retries: 2
+                              per_try_timeout: 10s
+
+
+  clusters:
+    - name: ethereum_node
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+
+      health_checks:
+        - timeout: 5s
+          interval: 10s
+          interval_jitter: 1s
+          unhealthy_threshold: 3
+          healthy_threshold: 2
+          http_health_check:
+            path: "/"
+
+      circuit_breakers:
+        thresholds:
+          - priority: DEFAULT
+            max_connections: 100
+            max_pending_requests: 100
+            max_requests: 1000
+
+      load_assignment:
+        cluster_name: ethereum_node
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: node1
+                      port_value: 8545
+
+
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
+  access_log:
+    - name: envoy.access_loggers.stdout
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
