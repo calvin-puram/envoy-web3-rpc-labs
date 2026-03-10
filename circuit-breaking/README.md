@@ -76,8 +76,8 @@ outlier detection removes bad nodes from the pool.
 ## Quick Start
 
 ```bash
-git clone https://github.com/your-username/envoy-web3-rpc-labs.git
-cd envoy-web3-rpc-labs/05-circuit-breaking
+git clone https://github.com/calvin-puram/envoy-web3-rpc-labs.git
+cd envoy-web3-rpc-labs/circuit-breaking
 
 docker compose up -d
 docker compose ps

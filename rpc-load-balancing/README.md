@@ -33,7 +33,7 @@ This lab demonstrates how to use **Envoy Proxy** as a smart layer-7 load balance
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/envoy-web3-rpc-labs.git
+git clone https://github.com/calvin-puram/envoy-web3-rpc-labs.git
 cd envoy-web3-rpc-labs/rpc-load-balancing
 
 # Start all services

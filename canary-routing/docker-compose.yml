@@ -1,0 +1,119 @@
+x-ethereum-node: &ethereum-node
+  image: ethereum/client-go:stable
+  restart: unless-stopped
+  command:
+    - --dev
+    - --dev.period=1
+    - --http
+    - --http.addr=0.0.0.0
+    - --http.port=8545
+    - --http.api=eth,web3,net,debug
+    - --http.corsdomain=*
+    - --http.vhosts=*
+    - --verbosity=3
+  healthcheck:
+    test:
+      - CMD
+      - sh
+      - -c
+      - |
+        wget -qO- \
+        --post-data='{"jsonrpc":"2.0","method":"net_listening","params":[],"id":1}' \
+        --header='Content-Type: application/json' \
+        http://localhost:8545 | grep -q '"result":true'
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    start_period: 10s
+
+services:
+  envoy:
+    image: envoyproxy/envoy:v1.29-latest
+    container_name: envoy-canary
+    restart: unless-stopped
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+      # Runtime directory — Envoy watches this for weight overrides.
+      # Files written here take effect immediately without restart.
+      - envoy-runtime:/srv/runtime
+    ports:
+      - "8545:8545"
+      - "9901:9901"
+    command:
+      - /usr/local/bin/envoy
+      - -c /etc/envoy/envoy.yaml
+      - --log-level info
+      - --component-log-level router:debug,upstream:info
+    depends_on:
+      stable:
+        condition: service_healthy
+      canary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Stable Node: Current Production Version
+  # Receives 95% of traffic at start.
+  stable:
+    <<: *ethereum-node
+    container_name: eth-node-stable
+    ports:
+      - "18545:8545"    # direct bypass Envoy for isolated testing
+    volumes:
+      - stable-data:/root/.ethereum
+
+  # Canary Node New Candidate Version
+  # Receives 5% of traffic at start.
+  # In a real scenario: different geth version, new config, etc.
+  canary:
+    <<: *ethereum-node
+    container_name: eth-node-canary
+    ports:
+      - "28545:8545"    # direct verify canary works before promoting
+    volumes:
+      - canary-data:/root/.ethereum
+
+  # Prometheus Metrics for Canary Analysis
+  # Scrapes Envoy admin stats endpoint.
+  # Use to compare stable vs canary error rates and latency.
+  # Essential for data-driven promotion decisions.
+  prometheus:
+    image: prom/prometheus:v2.49.1
+    container_name: prometheus-canary
+    restart: unless-stopped
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle          # allows config reload via POST /-/reload
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  stable-data:
+    driver: local
+  canary-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  envoy-runtime:
+    driver: local
+
+networks:
+  default:
+    name: envoy-canary-network
+    driver: bridge
