@@ -254,4 +254,4 @@ docker compose down -v
 - [Envoy Local Rate Limit Filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/local_rate_limit_filter)
 - [Token Bucket Algorithm](https://en.wikipedia.org/wiki/Token_bucket)
 - [Ethereum JSON-RPC API](https://ethereum.org/en/developers/docs/apis/json-rpc/)
-- [eth_getLogs — why it's expensive](https://docs.alchemy.com/docs/eth-getlogs)
+- [Understanding Logs: Deep Dive into eth_getLogs](https://www.alchemy.com/docs/deep-dive-into-eth_getlogs)
