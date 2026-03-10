@@ -274,16 +274,13 @@ Does your alerting SLO match the fault threshold where users notice impact?
 ```bash
 # Automated chaos test runs all fault scenarios and validates outcomes
 bash script/chaos-test.sh
-
-![experiment-7a diagram](./screenshots/exp7a.png)
-
-
 ## Reading Fault Injection Stats
 
 ```bash
 # All fault injection stats
 curl -s http://localhost:9901/stats | grep fault | sort
 ```
+![experiment-7a diagram](./screenshots/exp7a.png)
 
 | Stat | Meaning |
 |------|---------|
