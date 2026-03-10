@@ -1,4 +1,4 @@
-# Lab 03 — WebSocket Management for Blockchain Subscriptions
+# Lab 03: WebSocket Management for Blockchain Subscriptions
 
 ## Overview
 

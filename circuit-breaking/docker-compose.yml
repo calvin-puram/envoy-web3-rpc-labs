@@ -1,0 +1,88 @@
+x-ethereum-node: &ethereum-node
+  image: ethereum/client-go:stable
+  restart: unless-stopped
+  command:
+    - --dev
+    - --dev.period=1
+    - --http
+    - --http.addr=0.0.0.0
+    - --http.port=8545
+    - --http.api=eth,web3,net,debug
+    - --http.corsdomain=*
+    - --http.vhosts=*
+    - --verbosity=3
+  healthcheck:
+    test:
+      - CMD
+      - sh
+      - -c
+      - |
+        wget -qO- \
+        --post-data='{"jsonrpc":"2.0","method":"net_listening","params":[],"id":1}' \
+        --header='Content-Type: application/json' \
+        http://localhost:8545 | grep -q '"result":true'
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    start_period: 10s
+
+services:
+  envoy:
+    image: envoyproxy/envoy:v1.29-latest
+    container_name: envoy-circuit-breaker
+    restart: unless-stopped
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "8545:8545"
+      - "9901:9901"
+    command:
+      - /usr/local/bin/envoy
+      - -c /etc/envoy/envoy.yaml
+      - --log-level info
+      # upstream:debug shows circuit breaker open/close events in logs
+      - --component-log-level upstream:debug,router:debug,http:info
+    depends_on:
+      node1:
+        condition: service_healthy
+      node2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Ethereum Node 1  Primary
+  # Stays healthy throughout all experiments.
+  # Acts as the fallback when node2 is ejected.
+  node1:
+    <<: *ethereum-node
+    container_name: eth-node-cb-1
+    ports:
+      - "18545:8545"
+    volumes:
+      - node1-data:/root/.ethereum
+
+  # Ethereum Node 2 Failure Target
+  # Intentionally stopped/degraded in experiments to trigger
+  # outlier detection and observe automatic ejection + recovery.
+  node2:
+    <<: *ethereum-node
+    container_name: eth-node-cb-2
+    ports:
+      - "28545:8545"
+    volumes:
+      - node2-data:/root/.ethereum
+
+volumes:
+  node1-data:
+    driver: local
+  node2-data:
+    driver: local
+
+networks:
+  default:
+    name: envoy-circuit-breaking-network
+    driver: bridge

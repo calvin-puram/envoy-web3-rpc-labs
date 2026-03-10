@@ -1,0 +1,205 @@
+static_resources:
+
+  listeners:
+    - name: rpc_listener
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8545
+
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: rpc_ingress
+                use_remote_address: true
+
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      log_format:
+                        text_format: |
+                          [%START_TIME%] status=%RESPONSE_CODE%
+                          upstream=%UPSTREAM_HOST%
+                          flags=%RESPONSE_FLAGS%
+                          duration=%DURATION%ms
+                          # UO = upstream overflow (circuit breaker open)
+                          # UH = no healthy upstream hosts
+                          # URX = upstream retry limit exceeded
+
+                stream_idle_timeout: 60s
+                request_timeout: 30s
+
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+                route_config:
+                  name: rpc_route
+                  virtual_hosts:
+                    - name: rpc_backend
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: ethereum_nodes
+                            timeout: 30s
+
+                            # Retries are counted against max_retries threshold.
+                            # retry_host_predicate ensures retries go to a
+                            # different host critical when one node is failing.
+                            retry_policy:
+                              retry_on: "5xx,reset,connect-failure,retriable-4xx"
+                              num_retries: 3
+                              per_try_timeout: 10s
+                              retry_host_predicate:
+                                - name: envoy.retry_host_predicates.previous_hosts
+                                  typed_config:
+                                    "@type": type.googleapis.com/envoy.extensions.retry.host.previous_hosts.v3.PreviousHostsPredicate
+                              host_selection_retry_max_attempts: 3
+
+
+  clusters:
+    - name: ethereum_nodes
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+
+      # Active Health Checks
+      # Proactively polls each upstream on a schedule.
+      # Works alongside outlier detection health checks are
+      # periodic (scheduled), outlier detection is event-driven
+      # (triggered by real traffic errors).
+      health_checks:
+        - timeout: 5s
+          interval: 10s
+          interval_jitter: 1s
+          unhealthy_threshold: 3
+          healthy_threshold: 2
+          no_traffic_interval: 30s
+          http_health_check:
+            path: "/"
+
+      # Circuit Breakers
+      # Static thresholds. When any threshold is exceeded:
+      #   - New requests get immediate 503 (no queueing)
+      #   - stat: upstream_rq_pending_overflow increments
+      #   - Response flag UO (upstream overflow) set in access log
+      #
+      # DEFAULT priority applies to normal traffic.
+      # HIGH priority (not configured here) applies to retries
+      # when retry_priority is set on the route.
+      circuit_breakers:
+        thresholds:
+          - priority: DEFAULT
+            # Total simultaneous TCP connections to all upstream hosts.
+            # Breach => upstream_cx_overflow
+            max_connections: 100
+
+            # Requests waiting for a connection to become available.
+            # THIS is the most critical threshold for RPC proxies.
+            # A backed-up queue means nodes are struggling fail fast
+            # rather than making every request wait.
+            # Breach => upstream_rq_pending_overflow
+            max_pending_requests: 50
+
+            # Concurrent in-flight requests across all connections.
+            # RPC is fast enough that this rarely triggers before
+            # max_pending_requests but set it for safety.
+            # Breach => upstream_rq_overflow
+            max_requests: 200
+
+            # Concurrent retry attempts across all requests.
+            # Limits retry storms when a node starts failing
+            # without this, retries can amplify the problem.
+            # Breach → upstream_rq_retry_overflow
+            max_retries: 10
+
+            # Emit stats when circuit breaker is about to open
+            # (at 75% of threshold). Useful for alerting before
+            # requests are actually dropped.
+            track_remaining: true
+
+      # Outlier Detection
+      # Event-driven per-host failure tracking.
+      # Monitors real request outcomes not probes.
+      # Ejects individual hosts from the load balancer pool
+      # when their error rate exceeds configured thresholds.
+      #
+      # Key difference from circuit breakers:
+      #   Circuit breakers: "cluster is overloaded, stop sending"
+      #   Outlier detection: "this specific host is broken, eject it"
+      outlier_detection:
+        # Ejection Triggers
+
+        # Consecutive 5xx responses from a single host.
+        # 5xx from an RPC node = the node is returning errors.
+        # 5 in a row is a clear signal eject immediately.
+        consecutive_5xx: 5
+
+        # Consecutive connection failures (refused, timeout, reset).
+        # This catches nodes that are down before they return 5xx.
+        consecutive_gateway_failure: 5
+
+        # Success rate based ejection eject hosts whose success
+        # rate falls significantly below the cluster average.
+        # Requires minimum_hosts in pool to activate (avoids false
+        # positives with small pools).
+        success_rate_minimum_hosts: 2
+        success_rate_request_volume: 100    # need 100 requests to evaluate
+        success_rate_stdev_factor: 1900     # 1.9 standard deviations below mean
+
+        # How often to evaluate success rate ejections.
+        # Consecutive failure ejections happen immediately.
+        interval: 10s
+
+        # Ejection Policy
+
+        # How long to eject a host on first offense.
+        # Duration doubles on repeated ejections (exponential backoff).
+        # First: 30s, Second: 60s, Third: 120s...
+        base_ejection_time: 30s
+
+        # Maximum total ejection time regardless of repeat offenses.
+        max_ejection_time: 300s    # 5 minutes max
+
+        # Never eject more than this percentage of the pool.
+        # CRITICAL: without this, a cascading failure where all nodes
+        # return errors simultaneously would eject the entire pool —
+        # no traffic could be served at all.
+        # 50% ensures at least one node always remains in rotation.
+        max_ejection_percent: 50
+
+        # Emit events when ejection occurs visible in Envoy logs
+        # at debug level and in /stats as ejections_* counters
+        split_external_local_origin_errors: true
+
+      load_assignment:
+        cluster_name: ethereum_nodes
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: node1
+                      port_value: 8545
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: node2
+                      port_value: 8545
+
+
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
+  access_log:
+    - name: envoy.access_loggers.stdout
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
