@@ -8,15 +8,15 @@ system is unavailable.
 
 The circuit breaker pattern solves this by **failing fast**. Instead of waiting
 for a slow node to eventually timeout, Envoy tracks failure rates and connection
-pool exhaustion in real time. When thresholds are breached, the circuit opens —
+pool exhaustion in real time. When thresholds are breached, the circuit opens
 requests to that upstream are rejected immediately with a `503` rather than
 hanging for 30 seconds. This protects the application and gives the upstream
 node time to recover without being bombarded by traffic it cannot handle.
 
 Envoy implements two complementary mechanisms:
 
-- **Circuit breakers** => static thresholds on connections, requests, retries
-- **Outlier detection** => dynamic ejection of nodes based on observed error rates
+- **Circuit breakers**  static thresholds on connections, requests, retries
+- **Outlier detection**  dynamic ejection of nodes based on observed error rates
 
 This lab demonstrates both, applied to a realistic blockchain RPC scenario where
 one node becomes degraded and the proxy must route around it automatically.
@@ -40,8 +40,8 @@ What you will learn:
 
 | State | Behaviour | Envoy Equivalent |
 |-------|-----------|-----------------|
-| CLOSED | Normal — requests flow through | `cx_open = 0` |
-| OPEN | Failing fast — immediate 503 | `cx_open = 1`, host ejected |
+| CLOSED | Normal  requests flow through | `cx_open = 0` |
+| OPEN | Failing fast  immediate 503 | `cx_open = 1`, host ejected |
 | HALF-OPEN | Probe request allowed through | Host back in rotation, being tested |
 
 
@@ -50,13 +50,13 @@ What you will learn:
 
 | | Circuit Breaker | Outlier Detection |
 |---|---|---|
-| Type | Proactive — static thresholds | Reactive — observed error rates |
+| Type | Proactive  static thresholds | Reactive  observed error rates |
 | Triggers on | Connection/request count limits | 5xx errors, connection failures, latency |
 | Scope | Entire cluster | Per individual upstream host |
 | Recovery | Immediate when load drops | After `base_ejection_time` |
 | Use case | Protect against overload | Eject consistently failing nodes |
 
-**Use both together** — circuit breakers protect against volume spikes,
+**Use both together**  circuit breakers protect against volume spikes,
 outlier detection removes bad nodes from the pool.
 
 
@@ -141,14 +141,14 @@ Simulate node2 becoming unhealthy. Outlier detection will eject it
 automatically after 5 consecutive failures:
 
 ```bash
-# Terminal 1 — watch cluster health in real time
+# Terminal 1  watch cluster health in real time
 watch -n 2 'curl -s http://localhost:9901/clusters \
   | grep -A8 "ethereum_nodes"'
 
-# Terminal 2 — stop node2 to simulate failure
+# Terminal 2  stop node2 to simulate failure
 docker compose stop node2
 
-# Keep sending requests — observe:
+# Keep sending requests observe:
 # 1. First few requests to node2 return 503 (connect failure)
 # 2. After 5 failures, node2 is ejected (health_flags: failed_outlier_check)
 # 3. All traffic routes to node1
@@ -193,7 +193,7 @@ After `base_ejection_time` (30s), Envoy re-admits the ejected node:
 # Bring node2 back
 docker compose start node2
 
-# Watch the recovery — node2 will be probed after 30s
+# Watch the recovery node2 will be probed after 30s
 # and re-admitted if probes succeed
 watch -n 2 'curl -s http://localhost:9901/clusters \
   | grep -E "(health_flags|success_rate)"'
@@ -214,7 +214,7 @@ curl -s http://localhost:9901/stats \
 
 ### Experiment 6: Panic Mode
 
-When ALL nodes are ejected, Envoy enters **panic mode** — it ignores outlier
+When ALL nodes are ejected, Envoy enters **panic mode**  it ignores outlier
 detection and routes to all hosts (even unhealthy ones) to avoid returning
 zero results. This is controlled by `panic_threshold`.
 
@@ -259,8 +259,8 @@ curl -s http://localhost:9901/stats \
 | `upstream_cx_overflow` | Connections rejected by CB (conn limit) | Increase `max_connections` |
 | `upstream_rq_retry` | Requests retried | Normal if low; investigate if > 5% of total |
 | `outlier_detection.ejections_active` | Currently ejected hosts | Investigate node health |
-| `outlier_detection.ejections_total` | Total ejections ever | Trend over time — should be near 0 |
-| `lb_healthy_panic` | Panic mode active | All nodes unhealthy — major incident |
+| `outlier_detection.ejections_total` | Total ejections ever | Trend over time  should be near 0 |
+| `lb_healthy_panic` | Panic mode active | All nodes unhealthy  major incident |
 | `circuit_breakers.default.rq_pending_open` | CB currently open | Load spike in progress |
 
 
@@ -321,8 +321,8 @@ docker compose down -v
 
 ## What's Next
 
-- **[Lab 06: Canary Routing](../06-canary-routing/)**  use circuit breaking alongside weighted routing for safe node upgrades
-- **[Lab 07: Fault Injection](../07-fault-injection/)**  deliberately inject failures to test your circuit breaker config
+- **[Lab 06: Canary Routing](../canary-routing/)**  use circuit breaking alongside weighted routing for safe node upgrades
+- **[Lab 07: Fault Injection](../fault-injection/)**  deliberately inject failures to test your circuit breaker config
 
 
 
@@ -330,5 +330,5 @@ docker compose down -v
 
 - [Envoy Circuit Breaking](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/circuit_breaking)
 - [Envoy Outlier Detection](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/outlier)
-- [Martin Fowler — Circuit Breaker Pattern](https://martinfowler.com/bliki/CircuitBreaker.html)
-- [Google SRE Book — Handling Overload](https://sre.google/sre-book/handling-overload/)
+- [Martin Fowler  Circuit Breaker Pattern](https://martinfowler.com/bliki/CircuitBreaker.html)
+- [Google SRE Book  Handling Overload](https://sre.google/sre-book/handling-overload/)
