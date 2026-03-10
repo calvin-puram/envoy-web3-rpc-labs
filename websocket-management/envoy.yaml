@@ -1,0 +1,235 @@
+static_resources:
+  listeners:
+    - name: http_rpc_listener
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8545
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: rpc_http_ingress
+                use_remote_address: true
+
+                # Short timeouts appropriate for stateless HTTP
+                stream_idle_timeout: 60s
+                request_timeout: 30s
+
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      log_format:
+                        text_format: |
+                          [HTTP] [%START_TIME%] "%REQ(:METHOD)% %PROTOCOL%"
+                          status=%RESPONSE_CODE% upstream=%UPSTREAM_HOST%
+                          duration=%DURATION%ms
+
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+                route_config:
+                  name: http_rpc_route
+                  virtual_hosts:
+                    - name: http_rpc_backend
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: ethereum_http_nodes
+                            timeout: 30s
+                            retry_policy:
+                              retry_on: "5xx,reset,connect-failure"
+                              num_retries: 3
+                              per_try_timeout: 10s
+
+
+    # Long-lived stateful connections. Sticky routing. Permissive timeouts.
+    - name: websocket_listener
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8546
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: rpc_ws_ingress
+                use_remote_address: true
+
+                # Long idle timeout — subscriptions must survive quiet blocks
+                # Setting this too low is the #1 cause of dropped subscriptions
+                stream_idle_timeout: 3600s    # 1 hour
+                request_timeout: 0s           # 0 = disabled for streaming
+
+
+                # This is the critical config that enables WebSocket support.
+                # Without upgrade_configs, Envoy strips the Upgrade header
+                # and the connection silently downgrades to HTTP.
+                upgrade_configs:
+                  - upgrade_type: websocket
+                    enabled: true
+
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      log_format:
+                        text_format: |
+                          [WS] [%START_TIME%] "%REQ(:METHOD)% %PROTOCOL%"
+                          status=%RESPONSE_CODE% upstream=%UPSTREAM_HOST%
+                          client=%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%
+                          upgrade=%REQ(UPGRADE)% duration=%DURATION%ms
+
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+                route_config:
+                  name: websocket_route
+                  virtual_hosts:
+                    - name: websocket_backend
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            prefix: "/"
+                            headers:
+                              # Only route requests with WebSocket upgrade header
+                              - name: Upgrade
+                                string_match:
+                                  exact: websocket
+                                  ignore_case: true
+                          route:
+                            cluster: ethereum_ws_nodes
+
+                            # Disable timeout for WebSocket
+                            timeout: 0s
+                            idle_timeout: 3600s
+
+                            # Hash on downstream IP for sticky routing.
+                            # Same client IP => same upstream node => subscriptions work.
+                            hash_policy:
+                              - connection_properties:
+                                  source_ip: true
+                                terminal: true    # stop hashing after IP match
+
+                        # Fallback: non-upgrade requests on WS port
+                        # Handles health checks and plain HTTP on port 8546
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: ethereum_ws_nodes
+                            timeout: 30s
+
+
+  clusters:
+    # Stateless requests: any node can serve any request.
+    # Round robin provides even distribution.
+    - name: ethereum_http_nodes
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+
+      health_checks:
+        - timeout: 5s
+          interval: 10s
+          interval_jitter: 1s
+          unhealthy_threshold: 3
+          healthy_threshold: 2
+          http_health_check:
+            path: "/"
+
+      circuit_breakers:
+        thresholds:
+          - priority: DEFAULT
+            max_connections: 200
+            max_pending_requests: 200
+            max_requests: 2000
+            max_retries: 10
+
+      load_assignment:
+        cluster_name: ethereum_http_nodes
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: node1
+                      port_value: 8545
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: node2
+                      port_value: 8545
+
+    # WebSocket Cluster: ring hash (sticky)
+    # Stateful connections: the same client must always reach the
+    # same node or subscriptions break with "subscription not found".
+    #
+    # RING_HASH builds a consistent hash ring from upstream addresses.
+    # The same hash key (client IP) always maps to the same ring position
+    # and therefore the same upstream node even when nodes are added
+    # or removed from the pool.
+    - name: ethereum_ws_nodes
+      connect_timeout: 5s
+      type: STRICT_DNS
+
+      # RING_HASH: consistent hashing for session stickiness
+      # Alternative: MAGLEV (faster lookups, less redistribution on change)
+      lb_policy: RING_HASH
+      ring_hash_lb_config:
+        minimum_ring_size: 1024   # larger ring = better distribution
+        maximum_ring_size: 8388608
+
+      health_checks:
+        - timeout: 5s
+          interval: 10s
+          interval_jitter: 1s
+          unhealthy_threshold: 3
+          healthy_threshold: 2
+          http_health_check:
+            path: "/"
+
+      # Higher connection limits for WebSocket —
+      # each subscription holds a connection open
+      circuit_breakers:
+        thresholds:
+          - priority: DEFAULT
+            max_connections: 10000    # support many concurrent subscriptions
+            max_pending_requests: 100
+            max_requests: 10000
+            max_retries: 3
+
+      
+
+      load_assignment:
+        cluster_name: ethereum_ws_nodes
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: node1
+                      port_value: 8546    # WebSocket port on node
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: node2
+                      port_value: 8546    # WebSocket port on node
+
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
+  access_log:
+    - name: envoy.access_loggers.stdout
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
