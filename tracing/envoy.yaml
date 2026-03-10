@@ -1,0 +1,214 @@
+static_resources:
+
+  listeners:
+    - name: rpc_listener
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8545
+
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: rpc_ingress
+                use_remote_address: true
+
+                # Distributed Tracing
+                # generate_request_id: true (default) Envoy assigns
+                # x-request-id to every request. This ID appears in
+                # access logs AND in Jaeger, enabling cross-correlation.
+                generate_request_id: true
+
+                tracing:
+                  # 100% sampling trace every request
+                  # For production: lower this to 0.1 (10%) or 0.01 (1%)
+                  overall_sampling:
+                    value: 100.0
+
+                  # Tags added to every span searchable in Jaeger
+                  custom_tags:
+                    - tag: "service.name"
+                      literal:
+                        value: "ethereum-rpc-proxy"
+
+                    - tag: "lab"
+                      literal:
+                        value: "04-rpc-tracing"
+
+                    - tag: "deployment.environment"
+                      literal:
+                        value: "local-dev"
+
+                    # Capture the RPC method from request body is not
+                    # possible at the header level tag the path instead.
+                    # For method-level tags, use a Lua filter.
+                    - tag: "http.url"
+                      request_header:
+                        name: ":path"
+                        default_value: "/"
+
+                    - tag: "peer.service"
+                      literal:
+                        value: "ethereum-node"
+
+                # Access log  includes x-request-id for trace correlation
+                # Use the trace ID to find the exact span in Jaeger
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      log_format:
+                        text_format: |
+                          [%START_TIME%] "%REQ(:METHOD)% %PROTOCOL%"
+                          status=%RESPONSE_CODE%
+                          upstream=%UPSTREAM_HOST%
+                          duration=%DURATION%ms
+                          trace_id=%REQ(X-B3-TRACEID)%
+                          request_id=%REQ(X-REQUEST-ID)%
+
+                stream_idle_timeout: 60s
+                request_timeout: 30s
+
+                http_filters:
+                  # Optional: Lua filter for RPC method tagging
+                  # Uncomment to extract JSON-RPC method from request body
+                  # and add it as a span tag. Requires buffering the body.
+                  #
+                  # - name: envoy.filters.http.lua
+                  #   typed_config:
+                  #     "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.LuaPerRoute
+                  #     inline_code: |
+                  #       function envoy_on_request(request_handle)
+                  #         local body = request_handle:body()
+                  #         if body then
+                  #           local data = body:getBytes(0, body:length())
+                  #           local method = string.match(data, '"method":"([^"]+)"')
+                  #           if method then
+                  #             request_handle:headers():add("x-rpc-method", method)
+                  #           end
+                  #         end
+                  #       end
+
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                      # start_child_span: true adds a child span for the
+                      # upstream request shows upstream latency separately
+                      start_child_span: true
+
+                route_config:
+                  name: rpc_route
+                  virtual_hosts:
+                    - name: rpc_backend
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: ethereum_nodes
+                            timeout: 30s
+                            retry_policy:
+                              retry_on: "5xx,reset,connect-failure"
+                              num_retries: 3
+                              per_try_timeout: 10s
+                              # Each retry attempt creates a child span
+                              # retry attempts are visible in the trace waterfall
+                              retry_host_predicate:
+                                - name: envoy.retry_host_predicates.previous_hosts
+                                  typed_config:
+                                    "@type": type.googleapis.com/envoy.extensions.retry.host.previous_hosts.v3.PreviousHostsPredicate
+                              host_selection_retry_max_attempts: 3
+
+
+  clusters:
+
+    - name: ethereum_nodes
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+
+      health_checks:
+        - timeout: 5s
+          interval: 10s
+          interval_jitter: 1s
+          unhealthy_threshold: 3
+          healthy_threshold: 2
+          http_health_check:
+            path: "/"
+
+      circuit_breakers:
+        thresholds:
+          - priority: DEFAULT
+            max_connections: 200
+            max_pending_requests: 200
+            max_requests: 2000
+            max_retries: 10
+
+      load_assignment:
+        cluster_name: ethereum_nodes
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: node1
+                      port_value: 8545
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: node2
+                      port_value: 8545
+
+    # Jaeger Collector
+    # Envoy exports spans to this cluster via the tracing provider below.
+    # Uses Zipkin HTTP format on port 9411 (Jaeger supports Zipkin natively).
+    # Must be reachable before Envoy accepts traffic otherwise spans
+    # are dropped silently (not a fatal error).
+    - name: jaeger
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: jaeger
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: jaeger    # resolved via Docker DNS
+                      port_value: 9411   # Zipkin-compatible HTTP ingest
+
+# Tracing Provider
+# Configured at the bootstrap level applies to all listeners.
+# Uses Zipkin format because Jaeger accepts it natively and it is
+# simpler to configure than OpenTelemetry for this use case.
+#
+# To switch to OpenTelemetry (e.g. for production with OTLP):
+#   Replace typed_config with:
+#   "@type": ...OpenTelemetryConfig
+#   grpc_service:
+#     envoy_grpc:
+#       cluster_name: opentelemetry_collector
+tracing:
+  http:
+    name: envoy.tracers.zipkin
+    typed_config:
+      "@type": type.googleapis.com/envoy.config.trace.v3.ZipkinConfig
+      collector_cluster: jaeger
+      collector_endpoint: "/api/v2/spans"
+      collector_endpoint_version: HTTP_JSON
+      shared_span_context: false   # Envoy owns the root span
+      trace_id_128bit: true        # 128-bit trace IDs for uniqueness
+
+
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
+  access_log:
+    - name: envoy.access_loggers.stdout
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog

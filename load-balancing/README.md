@@ -34,7 +34,7 @@ This lab demonstrates how to use **Envoy Proxy** as a smart layer-7 load balance
 ```bash
 # Clone the repo
 git clone https://github.com/calvin-puram/envoy-web3-rpc-labs.git
-cd envoy-web3-rpc-labs/rpc-load-balancing
+cd envoy-web3-rpc-labs/load-balancing
 
 # Start all services
 docker compose up -d
@@ -193,8 +193,8 @@ docker compose down -v
 
 ## What's Next
 
-- **[Lab 02: RPC Rate Limiting](../rpc-rate-limiting/)**  protect your nodes from being overwhelmed
-- **[Lab 05: Circuit Breaking](../circuit-breaking/)**  fail fast when nodes are degraded
+- **[RPC Rate Limiting](../rate-limiting/)**  protect your nodes from being overwhelmed
+- **[Circuit Breaking](../circuit-breaking/)**  fail fast when nodes are degraded
 
 
 

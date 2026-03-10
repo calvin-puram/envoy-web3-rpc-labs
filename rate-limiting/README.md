@@ -46,7 +46,7 @@ What you will learn:
 ```bash
 # Clone the repo
 git clone https://github.com/calvin-puram/envoy-web3-rpc-labs.git
-cd envoy-web3-rpc-labs/rpc-rate-limiting
+cd envoy-web3-rpc-labs/rate-limiting
 
 # Start all services
 docker compose up -d
@@ -244,8 +244,8 @@ docker compose down -v
 
 ## What's Next
 
-- **[Lab 03: WebSocket Management](../websocket-management/)**  handle long-lived WebSocket connections to blockchain nodes
-- **[Lab 05: Circuit Breaking](../circuit-breaking/)**  fail fast when nodes are degraded
+- **[WebSocket Management](../websocket-management/)**  handle long-lived WebSocket connections to blockchain nodes
+- **[Circuit Breaking](../circuit-breaking/)**  fail fast when nodes are degraded
 
 
 

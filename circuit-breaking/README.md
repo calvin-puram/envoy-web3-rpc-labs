@@ -321,8 +321,8 @@ docker compose down -v
 
 ## What's Next
 
-- **[Lab 06: Canary Routing](../canary-routing/)**  use circuit breaking alongside weighted routing for safe node upgrades
-- **[Lab 07: Fault Injection](../fault-injection/)**  deliberately inject failures to test your circuit breaker config
+- **[Canary Routing](../canary-routing/)**  use circuit breaking alongside weighted routing for safe node upgrades
+- **[Fault Injection](../fault-injection/)**  deliberately inject failures to test your circuit breaker config
 
 
 

@@ -338,7 +338,7 @@ docker compose down -v
 
 ## What's Next
 
-- **[Lab 07: Fault Injection](../fault-injection/)** — test canary resilience by injecting errors and latency
+- **[Fault Injection](../fault-injection/)**  test canary resilience by injecting errors and latency
 
 
 ## References

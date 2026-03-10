@@ -1,0 +1,66 @@
+
+# Jaeger All-in-One Tracing Infrastructure
+#
+# Runs as a separate compose file so the tracing backend can be
+# started/stopped independently of the RPC infrastructure.
+# This mirrors how you would run Jaeger in a real environment
+# as a shared observability service, not coupled to each app.
+#
+# Ports:
+#   16686  => Jaeger UI          (http://localhost:16686)
+#   6831   => Thrift compact     (Envoy sends spans here via UDP)
+#   6832   => Thrift binary
+#   9411   => Zipkin compatible  (alternative ingest endpoint)
+#   14268  => Jaeger HTTP ingest
+#   14250  => gRPC ingest
+
+
+
+services:
+
+  # Jaeger All-in-One
+  # Single-binary deployment: collector + query + UI + storage.
+  # Uses in-memory storage  traces are lost on container restart.
+  # For persistent storage, replace with jaeger + elasticsearch/cassandra.
+  jaeger:
+    image: jaegertracing/all-in-one:1.55
+    container_name: jaeger
+    restart: unless-stopped
+    environment:
+      # In-memory storage adequate for local development
+      - SPAN_STORAGE_TYPE=memory
+
+      # Increase memory queue size for burst traffic
+      - MEMORY_MAX_TRACES=50000
+
+      # Log level
+      - LOG_LEVEL=info
+
+      # Sampling strategies accept all traces from Envoy
+      # In production, configure adaptive sampling here
+      - SAMPLING_STRATEGIES_FILE=/etc/jaeger/sampling.json
+
+    volumes:
+      - ./config/jaeger-sampling.json:/etc/jaeger/sampling.json:ro
+
+    ports:
+      - "16686:16686"   # Jaeger UI  open in browser
+      - "6831:6831/udp" # Thrift compact  Envoy uses this
+      - "6832:6832/udp" # Thrift binary
+      - "9411:9411"     # Zipkin compatible HTTP ingest
+      - "14268:14268"   # Jaeger HTTP collector
+      - "14250:14250"   # gRPC collector
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:16686/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  default:
+    # Share the same network as docker-compose.yml
+    # so Envoy can reach jaeger by hostname
+    name: envoy-rpc-tracing-network
+    driver: bridge

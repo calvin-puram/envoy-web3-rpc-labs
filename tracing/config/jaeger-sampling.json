@@ -1,0 +1,32 @@
+{
+  "default_strategy": {
+    "type": "probabilistic",
+    "param": 1.0,
+    "operation_strategies": [
+      {
+        "operation": "egress",
+        "type": "probabilistic",
+        "param": 1.0
+      }
+    ]
+  },
+  "service_strategies": [
+    {
+      "service": "envoy",
+      "type": "probabilistic",
+      "param": 1.0,
+      "operation_strategies": [
+        {
+          "operation": "eth_getLogs",
+          "type": "probabilistic",
+          "param": 1.0
+        },
+        {
+          "operation": "eth_blockNumber",
+          "type": "probabilistic",
+          "param": 1.0
+        }
+      ]
+    }
+  ]
+}

@@ -310,8 +310,8 @@ docker compose down -v
 
 ## What's Next
 
-- **[Lab 04: Circuit Breaking](../circuit-breaking/)**  protect against upstream node failures
-- **[Lab 05: RPC Tracing](../rpc-tracing/)**  trace WebSocket and HTTP requests end-to-end with Jaeger
+- **[Circuit Breaking](../circuit-breaking/)**  protect against upstream node failures
+- **[RPC Tracing](../tracing/)**  trace WebSocket and HTTP requests end-to-end with Jaeger
 
 
 
