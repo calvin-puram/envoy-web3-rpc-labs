@@ -14,7 +14,7 @@ This lab demonstrates how to use **Envoy Proxy** as a smart layer-7 load balance
 
 
 ## Architecture
-![architecture diagram](./screenshots//loadbalancing.jpg)
+![architecture diagram](./screenshots/loadbalance.jpg)
 
 
 
