@@ -27,11 +27,11 @@ What you will learn:
 - Why canary routing is safer than blue green for stateful blockchain nodes
 
 ## Architecture
-![architecture diagram](./screenshots/canary01.jpg)
+![architecture diagram](./screenshots/canary02.jpg)
 
 ## Canary Promotion Stages
 
-![architecture diagram](./screenshots/canary02.jpg)
+![architecture diagram](./screenshots/canary01.jpg)
 
 **Promotion criteria (automated check at each stage):**
 - Error rate on canary ≤ error rate on stable + 0.1%
