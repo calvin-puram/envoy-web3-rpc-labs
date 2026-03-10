@@ -1,4 +1,4 @@
-# Lab 04 — Distributed Tracing for Blockchain RPC
+# Lab 04: Distributed Tracing for Blockchain RPC
 
 ## Overview
 
