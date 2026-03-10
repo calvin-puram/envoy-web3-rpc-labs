@@ -2,7 +2,6 @@
 
 # Circuit Breaker Lifecycle Test
 
-# set -euo pipefail
 
 ENVOY_RPC="http://localhost:8545"
 ENVOY_ADMIN="http://localhost:9901"
@@ -26,7 +25,7 @@ stat() {
 }
 
 
-header "Phase 1 — Baseline: Both Nodes Healthy"
+header "Phase 1: Baseline: Both Nodes Healthy"
 
 log "Sending 10 baseline requests..."
 SUCCESS=0
@@ -49,7 +48,7 @@ else
 fi
 
 
-header "Phase 2 — Circuit Breaker: Overflow Test"
+header "Phase 2: Circuit Breaker: Overflow Test"
 
 log "Sending 200 concurrent requests to trigger pending overflow..."
 if command -v hey &>/dev/null; then
@@ -71,7 +70,7 @@ else
 fi
 
 
-header "Phase 3 — Outlier Detection: Node2 Ejection"
+header "Phase 3: Outlier Detection: Node2 Ejection"
 
 log "Stopping node2 to simulate failure..."
 docker compose stop node2 2>/dev/null
@@ -111,7 +110,7 @@ else
 fi
 
 
-header "Phase 4 — Recovery: Node2 Re-admitted"
+header "Phase 4: Recovery: Node2 Re-admitted"
 
 log "Starting node2..."
 docker compose start node2 2>/dev/null
@@ -136,7 +135,7 @@ log "Total upstream requests: $NODE1_RQ"
 pass "Traffic flowing post-recovery"
 
 
-header "Phase 5 — Panic Mode: All Nodes Down"
+header "Phase 5: Panic Mode: All Nodes Down"
 
 log "Stopping both nodes..."
 docker compose stop node1 node2 2>/dev/null
