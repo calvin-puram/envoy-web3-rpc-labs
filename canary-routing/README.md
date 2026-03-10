@@ -27,7 +27,7 @@ What you will learn:
 - Why canary routing is safer than blue green for stateful blockchain nodes
 
 ## Architecture
-[architecture diagram](./screenshots/canary01.jpg)
+![architecture diagram](./screenshots/canary01.jpg)
 
 ## Canary Promotion Stages
 
