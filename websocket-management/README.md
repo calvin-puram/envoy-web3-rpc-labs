@@ -2,32 +2,19 @@
 
 ## Overview
 
-HTTP JSON-RPC is stateless. If you send a req, you get an answer. But blockchain applications often need to **react to events as they happen**: new blocks, pending transactions, log emissions. For this, Ethereum nodes expose a WebSocket endpoint that supports long-lived connections and push-based subscriptions via `eth_subscribe`.
+HTTP JSON-RPC is stateless. If you send a req, you get an answer. But blockchain applications often need to **react to events as they happen**: new blocks, pending transactions, log emissions. For this, Ethereum nodes expose a WebSocket endpoint that supports long-lived connections and push based subscriptions via `eth_subscribe`.
 
-Putting a proxy in front of WebSocket connections introduces new failure modes that don't exist with HTTP:
 
-- **Connection upgrades** must be handled explicitly a misconfigured proxy silently drops them
-- **Idle timeout policies** designed for HTTP will kill long-lived subscriptions mid stream
-- **Sticky sessions** are required subscriptions are stateful and tied to a specific upstream node
-- **Reconnection storms** can occur when a proxy restart drops thousands of connections simultaneously
-
-This lab demonstrates how to configure Envoy to handle all of these correctly.
-
-What you will learn:
-- How WebSocket upgrade negotiation works through a proxy
-- How to configure per-route idle timeouts for long-lived connections
-- How to use hash-based load balancing for subscription stickiness
-- How to test WebSocket connections and subscriptions end-to-end
-- How to observe active WebSocket connections via Envoy stats
+In this lab, I demonstrates how you can configure Envoy to handle webSocket upgrade negotiation, configure per route idle timeouts for long lived connections, how to use hash based load balancing for subscription stickiness, how to test WebSocket connections and subscriptions end-to-end and finally how to observe active WebSocket connections via Envoy stats
 
 
 
 ## Architecture
-![architecture diagram](./screenshots/websocket.jpg)
+![architecture diagram](./screenshots/newwss.png)
 
 
 
-## WebSocket vs HTTP — Key Differences
+## WebSocket vs HTTP
 
 | Property | HTTP JSON-RPC | WebSocket |
 |----------|--------------|-----------|
@@ -99,7 +86,7 @@ wscat -c ws://localhost:8546
 
 ### Experiment 3: Subscribe to New Blocks
 
-The primary reason to use WebSocket — receive new block headers as they are mined:
+The primary reason to use WebSocket is receive new block headers as they are mined:
 
 ```bash
 # Open interactive WebSocket session

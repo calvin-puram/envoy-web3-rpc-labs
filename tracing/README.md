@@ -4,21 +4,11 @@
 
 When an RPC call fails or is slow, the standard debugging workflow is to grep logs across multiple services and mentally stitch together a timeline. This works for simple setups but breaks down quickly when you have multiple Envoy proxies, multiple nodes, and latency that only manifests under load.
 
-**Distributed tracing** solves this by propagating a unique trace ID through every hop of a request from the client through Envoy, into the Ethereum node, and back. Every span in the trace is recorded with timing, metadata, and status. The result is a complete visual timeline of exactly where time was spent and where failures occurred.
-
 This lab demonstrates how to instrument Envoy with **Zipkin-compatible tracing** and visualise traces in **Jaeger**, with a focus on the RPC methods that matter most for blockchain operations.
-
-What you will learn:
-- How distributed tracing works at the proxy layer (no application code changes)
-- How to identify slow RPC methods using p50/p95/p99 latency from trace data
-- How to correlate Envoy access logs with Jaeger traces using trace IDs
-- How to set sampling rates appropriate for production traffic volumes
-- How to spot upstream node performance differences from trace data
-
 
 
 ## Architecture
-![architecture diagram](./screenshots/tracing.jpg)
+![architecture diagram](./screenshots/newtrace.png)
 
 ## Trace Propagation Headers
 

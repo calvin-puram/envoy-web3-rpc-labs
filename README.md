@@ -1,10 +1,14 @@
-# envoy-web3-rpc-labs
+# Envoy Web3 RPC Labs
 
-A collection of hands on labs exploring Envoy Proxy
-for blockchain RPC infrastructure.
+> **Note:** Etherem Geth runs in `--dev` mode (single-node, instant mining, no peers).
+> Envoy, Prometheus, and Grafana have no authentication configured.
+> Intended for local lab use only do not expose these ports in production.
 
-> **Note:** All labs run in `--dev` mode with no authentication.
-> For learning purposes only not production ready.
+## Overview
+
+This is a hands on lab series where I apply SRE principles to Web3 node infrastructure using Envoy proxy patterns.
+
+Start with lab 01 and work your way through. Each lab builds on the last, and every lab has all the necessary config files you need to get started.
 
 ## Labs
 
@@ -22,9 +26,15 @@ for blockchain RPC infrastructure.
 - Docker
 - Docker Compose
 - curl / jq
+- Basic familiarity with Ethereum JSON-RPC
+- Basic familiarity with Envoy configuration (YAML)
 
 ## How to Run Each Lab
 cd into any lab folder and run:
 ```bash
-docker-compose up -d
+git clone https://github.com/calvinpuram/envoy-web3-rpc-labs.git
+cd envoy-web3-rpc-labs/load-balancing
+
+docker compose up -d
 ```
+

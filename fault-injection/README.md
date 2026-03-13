@@ -6,36 +6,13 @@ Circuit breakers, retries, and timeouts are only as good as the assumptions
 baked into them. The only way to know they actually work is to break things
 on purpose in a controlled environment, before production does it for you.
 
-**Fault injection** is the practice of deliberately introducing failures into
-a system to verify that its resilience mechanisms behave as designed. Envoy
-has first class support for fault injection at the proxy layer: you can inject
-latency, abort requests with arbitrary HTTP status codes, and combine both
-all without touching application code, without modifying upstream services, and
-without affecting traffic that is not explicitly targeted.
-
-Applied to blockchain RPC infrastructure, fault injection lets you answer
-questions that are otherwise impossible to test safely:
-
-- Does your dApp handle `eth_sendRawTransaction` returning 503 without losing the transaction?
-- What happens to your block sync logic when `eth_getBlockByNumber` is delayed 3 seconds?
-- Does your WebSocket subscription handler reconnect when the proxy injects a connection reset?
-- Does your alerting fire within SLA when the RPC node returns 50% errors?
-
 This lab builds a complete fault injection test suite covering latency injection,
 error injection, targeted method level faults, and gradual fault ramping the
 same techniques used in production chaos engineering programs.
 
-What you will learn:
-- How Envoy fault injection works at the HTTP filter level
-- How to target specific RPC methods with different fault profiles
-- How to use runtime overrides to enable/disable faults without redeployment
-- How to interpret the results and validate resilience mechanisms
-- How to build a repeatable chaos test suite for RPC infrastructure
-
-
 
 ## Architecture
-![architecture diagram](./screenshots/faultinjection.jpg)
+![architecture diagram](./screenshots/newft.drawio.png)
 
 
 

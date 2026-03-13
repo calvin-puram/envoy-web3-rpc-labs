@@ -8,30 +8,18 @@ subtly different RPC responses, or have regressions that only surface with
 real production traffic patterns. Rolling it out to 100% immediately is a
 gamble that can take down your entire RPC service.
 
-**Canary routing** solves this by splitting traffic between the current stable
-version and the new candidate version at the proxy layer no changes to your
-application, no DNS changes, no downtime. You start by sending 5% of traffic to
-the new node, observe its behaviour, and progressively increase the weight as
-confidence grows. If anything looks wrong, you shift 100% back to stable in
-seconds.
 
 This lab demonstrates a complete canary promotion workflow using Envoy weighted
 clusters, with Prometheus metrics and automated promotion/rollback scripts that
 reflect real production practices.
 
-What you will learn:
-- How to implement weighted traffic splitting at the proxy layer
-- How to use Envoy runtime overrides to change weights without redeployment
-- How to define SLOs and automate promotion/rollback decisions based on them
-- How to compare error rate and latency between stable and canary in real time
-- Why canary routing is safer than blue green for stateful blockchain nodes
 
 ## Architecture
-![architecture diagram](./screenshots/canary02.jpg)
+![architecture diagram](./screenshots/newcanary.png)
 
 ## Canary Promotion Stages
 
-![architecture diagram](./screenshots/canary01.jpg)
+![architecture diagram](./screenshots/canary.drawio.png)
 
 **Promotion criteria (automated check at each stage):**
 - Error rate on canary ≤ error rate on stable + 0.1%

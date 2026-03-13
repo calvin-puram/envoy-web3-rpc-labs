@@ -2,15 +2,12 @@
 
 ## Overview
 
-Public and private RPC endpoints are frequent targets of abuse bots, misconfigured clients, and runaway retry loops can saturate a node in seconds. Without rate limiting, a single bad actor can degrade service for every other consumer.
+RPC endpoints both private and public get hammered by bots. A
+retry loops can saturate a node in seconds and without rate limiting, one bad actor takes everyone else down with them.
 
-This lab demonstrates how to use **Envoy's local rate limiter** to enforce per-IP request limits at the proxy layer before traffic ever reaches your Ethereum node. No application code changes required.
+This lab demonstrates how to use **Envoy's local rate limiter** to enforce per IP request limits at the proxy layer before traffic ever reaches your Ethereum node. No application code changes required.
 
-What you will learn:
-- How to configure token bucket rate limiting in Envoy
-- How to differentiate limits by RPC method (e.g. stricter limits on `eth_getLogs`)
-- How to return meaningful `429 Too Many Requests` responses with `Retry-After` headers
-- How to observe rate limit hits via Envoy stats
+In this lab I go over how you can configure token bucket rate limiting in Envoy, differentiate limits by RPC method (e.g. stricter limits on `eth_getLogs`), how to return meaningful `429 Too Many Requests` responses with `Retry-After` headers and finally how to observe rate limit hits via Envoy stats
 
 
 ## Architecture
@@ -77,7 +74,7 @@ Expected: all return `200 OK` with block number results.
 ![experiment-1a diagram](./screenshots/exp1a.png)
 
 
-### Experiment 2: Trigger Per-IP Rate Limit
+### Experiment 2: Trigger Per IP Rate Limit
 
 Burst 30 requests rapidly from the same IP to exceed the 10 req/s limit:
 
@@ -95,7 +92,7 @@ done
 
 ### Experiment 3: eth_getLogs Strict Limiting
 
-`eth_getLogs` is one of the most resource-intensive RPC methods.
+`eth_getLogs` is one of the most resource intensive RPC methods.
 It has a stricter limit of 5 req/s:
 
 ```bash
@@ -143,9 +140,9 @@ curl -s http://localhost:9901/stats \
   | grep rate_limit | sort
 
 # Key metrics:
-# http_local_rate_limit.enabled              - total requests evaluated
-# http_local_rate_limit.rate_limited         - requests that were limited
-# http_local_rate_limit.ok                   - requests that passed
+# http_local_rate_limit.enabled              total requests evaluated
+# http_local_rate_limit.rate_limited         requests that were limited
+# http_local_rate_limit.ok                   requests that passed
 
 # Watch in real time while sending traffic
 watch -n 1 'curl -s http://localhost:9901/stats | grep rate_limit'

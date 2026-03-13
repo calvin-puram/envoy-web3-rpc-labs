@@ -2,19 +2,17 @@
 
 ## Overview
 
-Most Web3 teams run a single Ethereum RPC node as their primary endpoint. This creates a single point of failure when the node goes down, the application goes down.
 
-This lab demonstrates how to use **Envoy Proxy** as a smart layer-7 load balancer in front of multiple Ethereum nodes, providing:
+When you run a single Ethereum node, it becomes a single point of failure. If the node crashes at 1am, every application depending on it goes down with it.
 
-- Automatic traffic distribution across nodes
-- Active health checking with automatic failover
-- Zero-downtime node restarts
-- Per-endpoint observability via Envoy admin API
+This lab demonstrates how you can use **Envoy Proxy** as a layer 7 load balancer that sit in front of multiple Ethereum nodes, providing:
+automatic traffic distribution across nodes, active health checking with automatic failover, zero downtime node restarts and
+Per endpoint observability via Envoy admin API
 
 
 
 ## Architecture
-![architecture diagram](./screenshots/loadbalance.jpg)
+![architecture diagram](./screenshots/newlb.png)
 
 
 
@@ -131,11 +129,11 @@ curl -s http://localhost:9901/clusters
 curl -s http://localhost:9901/stats | grep ethereum_nodes | sort
 
 # Key metrics to look for:
-# upstream_rq_total         - total requests per endpoint
-# upstream_cx_active        - active connections
-# health_check.success      - successful health checks
-# health_check.failure      - failed health checks
-# upstream_rq_retry         - retried requests
+# upstream_rq_total         total requests per endpoint
+# upstream_cx_active        active connections
+# health_check.success      successful health checks
+# health_check.failure      failed health checks
+# upstream_rq_retry         retried requests
 ```
 
 ![experiment-4 diagram](./screenshots/exp4.png)
@@ -166,8 +164,8 @@ Distributes requests evenly across all healthy upstream nodes in sequence.
 ```yaml
 health_checks:
   - interval: 10s
-    unhealthy_threshold: 3    # 3 failures → mark unhealthy
-    healthy_threshold: 2      # 2 successes → mark healthy again
+    unhealthy_threshold: 3    # 3 failures  mark unhealthy
+    healthy_threshold: 2      # 2 successes  mark healthy again
     http_health_check:
       path: "/"
 ```

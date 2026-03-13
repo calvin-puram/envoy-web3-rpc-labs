@@ -6,13 +6,6 @@ Without circuit breaking, a degraded upstream node creates a compounding failure
 requests queue up, threads exhaust, timeouts cascade, and eventually the entire
 system is unavailable.
 
-The circuit breaker pattern solves this by **failing fast**. Instead of waiting
-for a slow node to eventually timeout, Envoy tracks failure rates and connection
-pool exhaustion in real time. When thresholds are breached, the circuit opens
-requests to that upstream are rejected immediately with a `503` rather than
-hanging for 30 seconds. This protects the application and gives the upstream
-node time to recover without being bombarded by traffic it cannot handle.
-
 Envoy implements two complementary mechanisms:
 
 - **Circuit breakers**  static thresholds on connections, requests, retries
@@ -20,15 +13,6 @@ Envoy implements two complementary mechanisms:
 
 This lab demonstrates both, applied to a realistic blockchain RPC scenario where
 one node becomes degraded and the proxy must route around it automatically.
-
-What you will learn:
-- The difference between circuit breakers (proactive) and outlier detection (reactive)
-- How to tune thresholds for RPC workloads specifically
-- How to observe circuit state changes in real time via Envoy stats
-- How to simulate node degradation and verify automatic recovery
-- Why `max_pending_requests` is the most important threshold for RPC proxies
-
-
 
 ## Architecture
 

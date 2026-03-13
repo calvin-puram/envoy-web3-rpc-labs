@@ -63,7 +63,7 @@ static_resources:
                 stat_prefix: rpc_ws_ingress
                 use_remote_address: true
 
-                # Long idle timeout — subscriptions must survive quiet blocks
+                # Long idle timeout  subscriptions must survive quiet blocks
                 # Setting this too low is the #1 cause of dropped subscriptions
                 stream_idle_timeout: 3600s    # 1 hour
                 request_timeout: 0s           # 0 = disabled for streaming
@@ -207,7 +207,7 @@ static_resources:
             max_requests: 10000
             max_retries: 3
 
-      
+
 
       load_assignment:
         cluster_name: ethereum_ws_nodes
